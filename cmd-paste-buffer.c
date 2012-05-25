@@ -47,9 +47,10 @@ int
 cmd_paste_buffer_exec(struct cmd *self, struct cmd_ctx *ctx)
 {
 	struct args		*args = self->args;
-	struct window_pane	*wp;
+	struct window_pane	*wp, *wp2;
 	struct session		*s;
 	struct paste_buffer	*pb;
+	struct window		*w = wp->window;
 	const char		*sepstr;
 	char			*cause;
 	int			 buffer;
@@ -89,7 +90,17 @@ cmd_paste_buffer_exec(struct cmd *self, struct cmd_ctx *ctx)
 		}
 		pflag = args_has(args, 'p') &&
 		    (wp->screen->mode & MODE_BRACKETPASTE);
+
 		cmd_paste_buffer_filter(wp, pb->data, pb->size, sepstr, pflag);
+		if (options_get_number(&w->options, "synchronize-panes")) {
+			TAILQ_FOREACH(wp2, &wp->window->panes, entry) {
+				if (wp2 == wp || wp2->mode != NULL)
+					continue;
+				if (wp2->fd != -1 && window_pane_visible(wp2))
+					cmd_paste_buffer_filter(wp2, pb->data,
+					    pb->size, sepstr, pflag);
+			}
+		}
 	}
 
 	/* Delete the buffer if -d. */
